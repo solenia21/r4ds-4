@@ -1,5 +1,51 @@
 ---
 title: "Crypto Markets"
 format: html
+execute:
+  echo: false
 ---
 
+```{r}
+#| message: false
+library(tidyverse)
+library(arrow)
+```
+
+```{r}
+#| cache: true
+prices <- arrow::read_parquet("data/daily_prices.parquet")
+metadata <- arrow::read_parquet("data/coin_metadata.parquet")
+categories <- arrow::read_parquet("data/categories.parquet")
+
+crypto <- prices |>
+  dplyr::mutate(date = as.Date(date_raw)) |>
+  dplyr::left_join(metadata, by = "coin_id") |>
+  dplyr::left_join(
+    dplyr::rename(categories, category_description = description),
+    by = "category_id"
+  )
+```
+
+```{r}
+crypto |>
+  dplyr::filter(coin_id == "btc") |>
+  ggplot2::ggplot(ggplot2::aes(x = date, y = price_usd)) +
+  ggplot2::geom_line()
+```
+
+```{r}
+crypto |>
+  dplyr::group_by(date, category_name) |>
+  dplyr::summarise(category_market_cap = sum(market_cap_usd, na.rm = TRUE), .groups = "drop") |>
+  dplyr::group_by(date) |>
+  dplyr::mutate(market_cap_share = category_market_cap / sum(category_market_cap)) |>
+  ggplot2::ggplot(
+    ggplot2::aes(x = date, y = market_cap_share, fill = category_name)
+  ) +
+  ggplot2::geom_area() +
+  ggplot2::labs(
+    x = "Date",
+    y = "Share of total market cap",
+    fill = "Category"
+  )
+```
